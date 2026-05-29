@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -22,6 +23,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("configuration error: %v", err)
 	}
+
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "save", "clip", "join":
+			runSaveCommand(cfg, os.Args[1:])
+			return
+		}
+	}
+
+	runRecorder(cfg)
+}
+
+func runRecorder(cfg config.Config) {
 	log.Printf("buffer directory: %s", cfg.BufferDir)
 	log.Printf("clips directory: %s", cfg.ClipsDir)
 	log.Printf("capture size: %s (%s)", cfg.VideoSize, cfg.VideoSizeSource)
@@ -66,6 +80,45 @@ func main() {
 			}()
 		}
 	}
+}
+
+func runSaveCommand(cfg config.Config, args []string) {
+	flags := flag.NewFlagSet(args[0], flag.ExitOnError)
+	flags.Usage = func() {
+		log.Printf("usage: cliper %s [-duration 30s] [-output clip.mp4] [-timeout 10m]", args[0])
+		flags.PrintDefaults()
+	}
+
+	duration := flags.Duration("duration", 0, "clip duration to save from the end of the buffer; 0 saves every finalized segment in the playlist")
+	flags.DurationVar(duration, "d", 0, "short alias for -duration")
+	output := flags.String("output", "", "output MP4 path; defaults to CLIPER_CLIPS_DIR/clip_TIMESTAMP.mp4")
+	flags.StringVar(output, "o", "", "short alias for -output")
+	timeout := flags.Duration("timeout", 10*time.Minute, "maximum time to wait for FFmpeg to concatenate the clip")
+
+	if err := flags.Parse(args[1:]); err != nil {
+		log.Fatalf("parse %s flags: %v", args[0], err)
+	}
+	if flags.NArg() != 0 {
+		log.Fatalf("unexpected positional arguments: %v", flags.Args())
+	}
+	if *timeout <= 0 {
+		log.Fatalf("-timeout must be greater than zero")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	defer cancel()
+
+	log.Printf("buffer directory: %s", cfg.BufferDir)
+	log.Printf("clips directory: %s", cfg.ClipsDir)
+	clipSaver := clip.NewSaver(cfg)
+	path, err := clipSaver.SaveWithOptions(ctx, clip.SaveOptions{
+		Duration: *duration,
+		Output:   *output,
+	})
+	if err != nil {
+		log.Fatalf("failed to save clip: %v", err)
+	}
+	log.Printf("clip saved: %s", path)
 }
 
 func buildHotkeyManager(cfg config.Config) hotkey.Manager {

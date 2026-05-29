@@ -68,6 +68,28 @@ CLIPER_BACKEND=pipewire CLIPER_VIDEO_SIZE=1366x768 go run ./cmd/cliper
 CLIPER_BACKEND=kmsgrab CLIPER_VIDEO_SIZE=1366x768 go run ./cmd/cliper
 ```
 
+
+### Salvar um clip manualmente depois de parar o Cliper
+
+Se você matou/parou o `cliper`, os segmentos finalizados continuam em `buffer/` junto com a playlist `buffer/segments.ffconcat`. Você pode juntar esses segmentos depois, sem iniciar uma nova gravação, usando o subcomando `save` (aliases: `clip` e `join`):
+
+```bash
+go run ./cmd/cliper save
+```
+
+Por padrão, esse comando junta todos os segmentos finalizados que ainda estão na playlist. Para salvar só o final do buffer, defina um tempo com `-duration`/`-d`:
+
+```bash
+go run ./cmd/cliper save -duration 30s
+go run ./cmd/cliper save -d 1m30s -output clips/ultimos-90s.mp4
+```
+
+Opções do subcomando:
+
+- `-duration`/`-d`: duração desejada a partir do fim do buffer. `0` salva todos os segmentos finalizados na playlist.
+- `-output`/`-o`: caminho do MP4 de saída. Se omitido, salva em `CLIPER_CLIPS_DIR/clip_TIMESTAMP.mp4`.
+- `-timeout`: tempo máximo para esperar o FFmpeg concatenar o clip, padrão `10m`.
+
 ## Observações sobre Wayland
 
 Wayland não permite hotkeys globais arbitrárias para clientes comuns. Para uso completo em Wayland, a abordagem recomendada é integrar com atalhos do compositor chamando uma interface externa do app. Esta versão mantém suporte experimental a captura PipeWire/KMSGrab, mas a hotkey global nativa é implementada para X11.
