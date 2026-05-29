@@ -131,10 +131,13 @@ func (m *Manager) recordArgs() []string {
 	args = append(args, m.inputArgs()...)
 	args = append(args,
 		"-an",
-		"-c:v", "libx264",
-		"-preset", "veryfast",
-		"-tune", "zerolatency",
-		"-pix_fmt", "yuv420p",
+		"-c:v", m.cfg.VideoCodec,
+	)
+	args = appendOptionalFFmpegOption(args, "-preset", m.cfg.VideoPreset)
+	args = appendOptionalFFmpegOption(args, "-tune", m.cfg.VideoTune)
+	args = appendOptionalFFmpegOption(args, "-crf", m.cfg.VideoCRF)
+	args = appendOptionalFFmpegOption(args, "-pix_fmt", m.cfg.PixelFormat)
+	args = append(args,
 		"-f", "segment",
 		"-segment_time", fmt.Sprint(m.cfg.SegmentSeconds()),
 		"-segment_format", "mpegts",
@@ -158,7 +161,7 @@ func (m *Manager) inputArgs() []string {
 	case config.BackendX11:
 		fallthrough
 	default:
-		return []string{"-f", "x11grab", "-framerate", fmt.Sprint(m.cfg.FPS), "-video_size", m.cfg.VideoSize, "-i", m.cfg.Display}
+		return []string{"-f", "x11grab", "-framerate", fmt.Sprint(m.cfg.FPS), "-video_size", m.cfg.VideoSize, "-i", m.cfg.Display + m.cfg.CaptureOffset}
 	}
 }
 
@@ -178,4 +181,11 @@ func height(videoSize string) string {
 		}
 	}
 	return "1080"
+}
+
+func appendOptionalFFmpegOption(args []string, key, value string) []string {
+	if value == "" {
+		return args
+	}
+	return append(args, key, value)
 }
