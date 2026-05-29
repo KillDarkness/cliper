@@ -1,3 +1,5 @@
+//go:build linux && cgo && x11hotkey
+
 package hotkey
 
 /*
@@ -48,13 +50,13 @@ type X11Manager struct {
 	keycode C.KeyCode
 }
 
-func NewX11(hotkey string) (*X11Manager, error) {
-	name := C.CString(os.Getenv("DISPLAY"))
+func NewX11(displayName, hotkey string) (*X11Manager, error) {
+	name := C.CString(displayName)
 	defer C.free(unsafe.Pointer(name))
 
 	display := C.XOpenDisplay(name)
 	if display == nil {
-		return nil, fmt.Errorf("connect to X11 display %q", os.Getenv("DISPLAY"))
+		return nil, fmt.Errorf("connect to X11 display %q", displayName)
 	}
 
 	keysym := keysymFor(hotkey)

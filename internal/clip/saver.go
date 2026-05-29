@@ -15,6 +15,11 @@ import (
 	"github.com/example/cliper/internal/config"
 )
 
+type SaveOptions struct {
+	Duration time.Duration
+	Output   string
+}
+
 type Saver struct {
 	cfg config.Config
 	mu  sync.Mutex
@@ -25,10 +30,18 @@ func NewSaver(cfg config.Config) *Saver {
 }
 
 func (s *Saver) Save(ctx context.Context) (string, error) {
+	return s.SaveWithOptions(ctx, SaveOptions{})
+}
+
+func (s *Saver) SaveWithOptions(ctx context.Context, opts SaveOptions) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	segments, err := s.currentSegments()
+	if err != nil {
+		return "", err
+	}
+	segments, err = s.segmentsForDuration(segments, opts.Duration)
 	if err != nil {
 		return "", err
 	}
@@ -61,7 +74,19 @@ func (s *Saver) Save(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	output := filepath.Join(s.cfg.ClipsDir, "clip_"+timestamp+".mp4")
+	output := opts.Output
+	if output == "" {
+		output = filepath.Join(s.cfg.ClipsDir, "clip_"+timestamp+".mp4")
+	} else if !filepath.IsAbs(output) {
+		absolute, err := filepath.Abs(output)
+		if err != nil {
+			return "", fmt.Errorf("resolve output path: %w", err)
+		}
+		output = absolute
+	}
+	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
+		return "", fmt.Errorf("create output directory: %w", err)
+	}
 	args := []string{
 		"-hide_banner",
 		"-loglevel", "warning",
@@ -82,6 +107,23 @@ func (s *Saver) Save(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("concat segments with ffmpeg: %w", err)
 	}
 	return output, nil
+}
+
+func (s *Saver) segmentsForDuration(segments []string, duration time.Duration) ([]string, error) {
+	if duration < 0 {
+		return nil, fmt.Errorf("clip duration must be greater than or equal to zero")
+	}
+	if duration == 0 {
+		return segments, nil
+	}
+	if s.cfg.SegmentDuration <= 0 {
+		return nil, fmt.Errorf("segment duration must be greater than zero")
+	}
+	wanted := int((duration + s.cfg.SegmentDuration - time.Nanosecond) / s.cfg.SegmentDuration)
+	if wanted <= 0 || wanted >= len(segments) {
+		return segments, nil
+	}
+	return segments[len(segments)-wanted:], nil
 }
 
 func (s *Saver) currentSegments() ([]string, error) {
