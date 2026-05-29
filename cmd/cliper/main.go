@@ -24,6 +24,10 @@ func main() {
 	}
 	log.Printf("buffer directory: %s", cfg.BufferDir)
 	log.Printf("clips directory: %s", cfg.ClipsDir)
+	log.Printf("capture size: %s (%s)", cfg.VideoSize, cfg.VideoSizeSource)
+	if cfg.Backend == config.BackendX11 {
+		log.Printf("capture input: %s%s", cfg.Display, cfg.CaptureOffset)
+	}
 	log.Printf("target buffer: %s (%d x %s segments)", cfg.ClipDuration(), cfg.MaxSegments, cfg.SegmentDuration)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -65,10 +69,10 @@ func main() {
 }
 
 func buildHotkeyManager(cfg config.Config) hotkey.Manager {
-	if os.Getenv("DISPLAY") == "" || cfg.Backend != config.BackendX11 {
+	if cfg.Display == "" || cfg.Backend != config.BackendX11 {
 		return hotkey.NewTerminal()
 	}
-	manager, err := hotkey.NewX11(cfg.Hotkey)
+	manager, err := hotkey.NewX11(cfg.Display, cfg.Hotkey)
 	if err != nil {
 		log.Printf("failed to initialize X11 hotkey %s: %v", cfg.Hotkey, err)
 		return hotkey.NewTerminal()
