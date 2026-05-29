@@ -9,7 +9,7 @@ O projeto é dividido em quatro módulos principais:
 - **Config (`internal/config`)**: centraliza caminhos, duração dos segmentos, quantidade máxima de segmentos, FPS, resolução, offset da captura, parâmetros de encoder, hotkey e backend de captura. Também cria automaticamente `buffer/` e `clips/` na inicialização.
 - **FFmpeg manager (`internal/ffmpeg`)**: inicia o FFmpeg via `exec.Command`, mantém a gravação contínua em background, grava segmentos MPEG-TS de 5 segundos e reinicia o processo se ele encerrar inesperadamente.
 - **Clip saver (`internal/clip`)**: lê a playlist de segmentos finalizados, copia um snapshot dos segmentos atuais para um diretório temporário e concatena tudo com FFmpeg usando `-c copy`, evitando reencodificação e reduzindo uso de CPU.
-- **Hotkey manager (`internal/hotkey`)**: registra uma hotkey global no X11 usando XGrabKey. No Wayland, hotkeys globais são restritas por design; nesse caso o app mantém um fallback por terminal, pressionando Enter para salvar um clip.
+- **Hotkey manager (`internal/hotkey`)**: mantém um fallback por terminal, pressionando Enter para salvar um clip. Opcionalmente, builds Linux com CGO e a tag `cliper_x11` registram uma hotkey global no X11 usando XGrabKey. No Wayland, hotkeys globais são restritas por design; use o fallback por terminal ou atalhos do compositor.
 
 ## Fluxo de funcionamento
 
@@ -37,7 +37,13 @@ Para X11, o backend padrão usa `x11grab`. Em Wayland, use `pipewire` se o seu F
 go run ./cmd/cliper
 ```
 
-Por padrão, a hotkey é `F8` no X11. Variáveis de ambiente úteis:
+Por padrão, `go run ./cmd/cliper` usa o fallback por terminal (pressione Enter para salvar) para evitar depender de CGO/libX11 durante a compilação. Para habilitar a hotkey global `F8` no X11, instale `libx11` e execute com a tag opcional:
+
+```bash
+go run -tags cliper_x11 ./cmd/cliper
+```
+
+Variáveis de ambiente úteis:
 
 - `CLIPER_BACKEND`: `x11`, `pipewire` ou `kmsgrab`.
 - `CLIPER_DISPLAY`: display X11, padrão `$DISPLAY` ou `:0.0`.
@@ -62,6 +68,7 @@ Exemplos:
 
 ```bash
 CLIPER_BACKEND=x11 CLIPER_DISPLAY=:0.0 go run ./cmd/cliper
+CLIPER_BACKEND=x11 CLIPER_DISPLAY=:0.0 go run -tags cliper_x11 ./cmd/cliper
 CLIPER_BACKEND=x11 CLIPER_DISPLAY=:0.0 CLIPER_VIDEO_SIZE=1366x768 go run ./cmd/cliper
 CLIPER_BACKEND=x11 CLIPER_CAPTURE_OFFSET=+1920,0 go run ./cmd/cliper
 CLIPER_BACKEND=pipewire CLIPER_VIDEO_SIZE=1366x768 go run ./cmd/cliper
@@ -92,4 +99,4 @@ Opções do subcomando:
 
 ## Observações sobre Wayland
 
-Wayland não permite hotkeys globais arbitrárias para clientes comuns. Para uso completo em Wayland, a abordagem recomendada é integrar com atalhos do compositor chamando uma interface externa do app. Esta versão mantém suporte experimental a captura PipeWire/KMSGrab, mas a hotkey global nativa é implementada para X11.
+Wayland não permite hotkeys globais arbitrárias para clientes comuns. Para uso completo em Wayland, a abordagem recomendada é integrar com atalhos do compositor chamando uma interface externa do app. Esta versão mantém suporte experimental a captura PipeWire/KMSGrab. A hotkey global nativa é implementada apenas para builds X11 explícitos com `-tags cliper_x11`; builds padrão continuam usando o fallback por terminal.
